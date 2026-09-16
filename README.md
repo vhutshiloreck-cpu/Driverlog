@@ -1,12 +1,25 @@
 # DriverLog
 
-A mobile-first automotive management app for tracking vehicles, drives, mileage, expenses, maintenance, and reports.
+A premium automotive management app for tracking vehicles, trips, maintenance, and expenses.
 
-## Run locally
+## Features
+
+- Vehicle overview and primary vehicle tracking
+- Trip logging with distance and duration
+- Expense capture and cost summaries
+- Maintenance reminders and renewal tracking
+- Reports and dashboard insights
+- Mobile-first app shell with offline-friendly browser storage
+
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
 
-The preview stores data in the browser so it works without a backend. The UI is ready to connect to PostgreSQL/Drizzle when authentication and persistence are enabled.
+Open http://localhost:3000
+
+## Production readiness
+
+This repo is structured for a Vercel deployment. Add your deployment environment variables and the app is ready to go live.

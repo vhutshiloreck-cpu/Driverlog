@@ -1,3 +1,19 @@
 {
-  "name":"DriverLog — Drive. Track. Know.","short_name":"DriverLog","start_url":"/","display":"standalone","background_color":"#05070d","theme_color":"#05070d"
+  "name": "DriverLog — Drive. Track. Know.",
+  "short_name": "DriverLog",
+  "description": "Premium automotive driving, mileage, expense and vehicle management.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05070d",
+  "theme_color": "#05070d",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

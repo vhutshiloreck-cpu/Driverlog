@@ -1,23 +1,689 @@
 "use client";
+
 import { useEffect, useMemo, useState } from "react";
 
-type View="home"|"trips"|"expenses"|"vehicles"|"reports"|"maintenance"|"settings"|"drive";
-type Trip={id:string;type:"business"|"personal";from:string;to:string;km:number;minutes:number;date:string;vehicle:string};
-type Expense={id:string;category:string;merchant:string;amount:number;date:string};
-type Vehicle={id:string;make:string;model:string;plate:string;odometer:number;fuel:string;primary?:boolean};
-const seedVehicles:Vehicle[]=[{id:"v1",make:"Volkswagen",model:"Polo",plate:"DEM-001",odometer:85240,fuel:"Petrol",primary:true},{id:"v2",make:"Toyota",model:"Hilux",plate:"WRK-774",odometer:142300,fuel:"Diesel"}];
-const seedTrips:Trip[]=[{id:"t1",type:"business",from:"Sandton",to:"Midrand",km:32.4,minutes:48,date:"2026-09-15",vehicle:"v1"},{id:"t2",type:"personal",from:"Home",to:"Rosebank Mall",km:11.2,minutes:25,date:"2026-09-14",vehicle:"v1"},{id:"t3",type:"business",from:"Office",to:"Pretoria CBD",km:54.1,minutes:70,date:"2026-09-12",vehicle:"v1"}];
-const seedExpenses:Expense[]=[{id:"e1",category:"fuel",merchant:"Engen 1Stop",amount:920,date:"2026-09-15"},{id:"e2",category:"parking",merchant:"Sandton City",amount:45,date:"2026-09-14"},{id:"e3",category:"maintenance",merchant:"Tiger Wheel & Tyre",amount:310,date:"2026-09-12"}];
-const money=(n:number)=>`R${n.toLocaleString("en-ZA",{maximumFractionDigits:2})}`;
-function useData(){const [vehicles,setVehicles]=useState<Vehicle[]>(seedVehicles),[trips,setTrips]=useState<Trip[]>(seedTrips),[expenses,setExpenses]=useState<Expense[]>(seedExpenses);useEffect(()=>{try{const x=localStorage.getItem("driverlog");if(x){const d=JSON.parse(x);setVehicles(d.vehicles);setTrips(d.trips);setExpenses(d.expenses)}}catch{}},[]);useEffect(()=>{localStorage.setItem("driverlog",JSON.stringify({vehicles,trips,expenses}))},[vehicles,trips,expenses]);return {vehicles,setVehicles,trips,setTrips,expenses,setExpenses}}
-export function App(){const data=useData();const [view,setView]=useState<View>("home");const [drive,setDrive]=useState(false);const [modal,setModal]=useState<"trip"|"expense"|null>(null);const nav=(v:View)=>{setView(v);setDrive(v==="drive")};return <><header className="nav"><div className="nav-inner"><div className="brand">◉ DriverLog<small>DRIVE. TRACK. KNOW.</small></div><nav className="navlinks">{(["home","trips","expenses","vehicles","reports","maintenance","settings"] as View[]).map(v=><button className={view===v?"active":""} key={v} onClick={()=>nav(v)}>{v[0].toUpperCase()+v.slice(1)}</button>)}</nav><button className="btn primary" onClick={()=>nav("drive")}>▶ Start drive</button></div></header><main className="page">{drive?<Drive onSave={t=>{data.setTrips(x=>[t,...x]);nav("trips")}} onCancel={()=>nav("home")} vehicle={data.vehicles[0]}/>:view==="home"?<Dashboard data={data} nav={nav} addTrip={()=>setModal("trip")} addExpense={()=>setModal("expense")}/>:view==="trips"?<Trips data={data} add={()=>setModal("trip")}/>:view==="expenses"?<Expenses data={data} add={()=>setModal("expense")}/>:view==="vehicles"?<Vehicles data={data}/>:view==="reports"?<Reports data={data}/>:view==="maintenance"?<Maintenance/>:<Settings/>}</main><nav className="mobilebar"><button className={view==="home"?"active":""} onClick={()=>nav("home")}>⌂<br/>Home</button><button className={view==="trips"?"active":""} onClick={()=>nav("trips")}>↗<br/>Trips</button><button className="drive" onClick={()=>nav("drive")}>▶</button><button className={view==="expenses"?"active":""} onClick={()=>nav("expenses")}>R<br/>Costs</button><button className={view==="vehicles"?"active":""} onClick={()=>nav("vehicles")}>▣<br/>Garage</button></nav>{modal&&<Modal kind={modal} data={data} close={()=>setModal(null)}/>}</>}
-function Dashboard({data,nav,addTrip,addExpense}:{data:ReturnType<typeof useData>;nav:(v:View)=>void;addTrip:()=>void;addExpense:()=>void}){const km=data.trips.reduce((s,t)=>s+t.km,0),spend=data.expenses.reduce((s,e)=>s+e.amount,0),primary=data.vehicles.find(v=>v.primary)||data.vehicles[0];return <><div className="hero"><div><span className="muted">Good morning,</span><h1>Keep moving.</h1><span className="muted">Your automotive command centre.</span></div><div className="actions"><button className="btn primary" onClick={()=>nav("drive")}>▶ Start drive</button><button className="btn" onClick={addTrip}>＋ Add trip</button><button className="btn" onClick={addExpense}>＋ Expense</button></div></div><div className="grid"><div className="glass card"><div className="metric-label">Distance this month</div><div className="metric-value cyan">{km.toFixed(1)} <small>km</small></div></div><div className="glass card"><div className="metric-label">Total expenses</div><div className="metric-value">{money(spend)}</div></div><div className="glass card"><div className="metric-label">Cost per km</div><div className="metric-value">{money(km?spend/km:0)}</div></div><div className="glass card"><div className="metric-label">Trips recorded</div><div className="metric-value">{data.trips.length}</div></div></div><div className="section"><h2>Primary vehicle</h2><div className="glass card"><div className="row"><div><strong>{primary?.make} {primary?.model}</strong><small>{primary?.plate} · {primary?.fuel}</small></div><span className="badge">{primary?.odometer.toLocaleString()} km</span></div></div></div><div className="section"><div className="row"><h2>Recent trips</h2><button className="btn" onClick={()=>nav("trips")}>View all</button></div><div className="list">{data.trips.slice(0,3).map(t=><TripRow key={t.id} t={t}/>)}</div></div></>}
-function TripRow({t}:{t:Trip}){return <div className="glass card row"><div><span className="badge">{t.type}</span><strong>{t.from} → {t.to}</strong><small>{t.date} · {t.minutes} min</small></div><strong className="cyan">{t.km.toFixed(1)} km</strong></div>}
-function Trips({data,add}:{data:ReturnType<typeof useData>;add:()=>void}){const [filter,setFilter]=useState("all");const rows=data.trips.filter(t=>filter==="all"||t.type===filter);return <><div className="hero"><div><h1>Trips</h1><span className="muted">{rows.length} recorded journeys</span></div><button className="btn primary" onClick={add}>＋ Add trip</button></div><div className="tabs">{["all","business","personal"].map(x=><button className={filter===x?"active":""} onClick={()=>setFilter(x)} key={x}>{x}</button>)}</div><div className="list">{rows.map(t=><TripRow key={t.id} t={t}/>)}</div></>}
-function Expenses({data,add}:{data:ReturnType<typeof useData>;add:()=>void}){return <><div className="hero"><div><h1>Expenses</h1><span className="muted">Track the true cost of every kilometre.</span></div><button className="btn primary" onClick={add}>＋ Add expense</button></div><div className="grid"><div className="glass card"><div className="metric-label">Total</div><div className="metric-value">{money(data.expenses.reduce((s,e)=>s+e.amount,0))}</div></div><div className="glass card"><div className="metric-label">Fuel</div><div className="metric-value">{money(data.expenses.filter(e=>e.category==="fuel").reduce((s,e)=>s+e.amount,0))}</div></div></div><div className="section list">{data.expenses.map(e=><div className="glass card row" key={e.id}><div><strong>{e.merchant}</strong><small>{e.category} · {e.date}</small></div><strong>{money(e.amount)}</strong></div>)}</div></>}
-function Vehicles({data}:{data:ReturnType<typeof useData>}){return <><div className="hero"><div><h1>Garage</h1><span className="muted">{data.vehicles.length} vehicles in your garage</span></div></div><div className="list">{data.vehicles.map(v=><div className="glass card" key={v.id}><div className="row"><div><strong>{v.make} {v.model}</strong><small>{v.plate} · {v.fuel}</small></div>{v.primary&&<span className="badge">Primary</span>}</div><div className="section"><span className="muted">Odometer</span><div className="metric-value">{v.odometer.toLocaleString()} km</div></div></div>)}</div></>}
-function Reports({data}:{data:ReturnType<typeof useData>}){const total=data.trips.reduce((s,t)=>s+t.km,0),business=data.trips.filter(t=>t.type==="business").reduce((s,t)=>s+t.km,0);return <><div className="hero"><div><h1>Reports</h1><span className="muted">Driving and cost breakdown</span></div><button className="btn" onClick={()=>alert("Report export is ready to connect to a server-side CSV/PDF exporter.")}>Export report</button></div><div className="grid"><div className="glass card"><div className="metric-label">Total distance</div><div className="metric-value cyan">{total.toFixed(1)} km</div></div><div className="glass card"><div className="metric-label">Business distance</div><div className="metric-value">{business.toFixed(1)} km</div></div><div className="glass card"><div className="metric-label">Personal distance</div><div className="metric-value">{(total-business).toFixed(1)} km</div></div><div className="glass card"><div className="metric-label">Total spend</div><div className="metric-value">{money(data.expenses.reduce((s,e)=>s+e.amount,0))}</div></div></div><div className="section glass card"><h2>Distance by trip</h2><div className="chart">{data.trips.map(t=><div className="barwrap" key={t.id}><div className="bar" style={{height:`${Math.max(8,t.km/Math.max(total,1)*100)}%`}}/><small>{t.km.toFixed(0)} km</small></div>)}</div></div></>}
-function Maintenance(){return <><div className="hero"><div><h1>Maintenance</h1><span className="muted">Stay ahead of servicing and renewals.</span></div><button className="btn primary">＋ Log service</button></div><div className="grid"><div className="glass card"><div className="metric-label">Next service</div><div className="metric-value cyan">7,800 <small>km</small></div></div><div className="glass card"><div className="metric-label">Insurance</div><div className="metric-value">42 <small>days</small></div></div><div className="glass card"><div className="metric-label">License</div><div className="metric-value">87 <small>days</small></div></div></div><div className="section glass card"><h2>Service history</h2><div className="row"><div><strong>Major 75k service</strong><small>Oil, filters, brake inspection</small></div><span>R3,480</span></div></div></>}
-function Settings(){return <><div className="hero"><div><h1>Settings</h1><span className="muted">Preferences and account</span></div></div><div className="glass card list"><div className="row"><span>Display name</span><input className="field" style={{maxWidth:220}} defaultValue="Driver"/></div><div className="row"><span>Distance unit</span><select className="field" style={{maxWidth:150}}><option>Kilometres</option><option>Miles</option></select></div><div className="row"><span>Currency</span><select className="field" style={{maxWidth:150}}><option>ZAR (R)</option><option>USD ($)</option></select></div></div></>}
-function Drive({vehicle,onSave,onCancel}:{vehicle?:Vehicle;onSave:(t:Trip)=>void;onCancel:()=>void}){const [active,setActive]=useState(false),[started,setStarted]=useState(0),[seconds,setSeconds]=useState(0),[destination,setDestination]=useState("");useEffect(()=>{if(!active)return;const id=setInterval(()=>setSeconds(Math.floor((Date.now()-started)/1000)),1000);return()=>clearInterval(id)},[active,started]);const stop=()=>{onSave({id:crypto.randomUUID(),type:"business",from:"Current location",to:destination||"Unspecified destination",km:Number((seconds/90).toFixed(1)),minutes:Math.max(1,Math.round(seconds/60)),date:new Date().toISOString().slice(0,10),vehicle:vehicle?.id||""})};return <><div className="hero"><div><h1>{active?"Drive in progress":"Start a drive"}</h1><span className="muted">Foreground GPS tracking while DriverLog is open.</span></div><button className="btn" onClick={onCancel}>Cancel</button></div><div className="glass card" style={{textAlign:"center"}}><div className="metric-label">{active?"Elapsed time":"Ready when you are"}</div><div className="metric-value cyan">{String(Math.floor(seconds/60)).padStart(2,"0")}:{String(seconds%60).padStart(2,"0")}</div>{!active&&<input className="field" value={destination} onChange={e=>setDestination(e.target.value)} placeholder="Destination (optional)"/>}<div className="actions" style={{justifyContent:"center",marginTop:20}}>{!active?<button className="btn primary" onClick={()=>{setStarted(Date.now());setActive(true)}}>▶ Begin drive</button>:<button className="btn primary" onClick={stop}>■ End and save</button>}</div></div><div className="section glass card"><span className="muted">Vehicle</span><strong>{vehicle?.make} {vehicle?.model} · {vehicle?.plate}</strong><p className="muted">Location permission is requested by your browser. A PWA tracks reliably while foregrounded.</p></div></>}
-function Modal({kind,data,close}:{kind:"trip"|"expense";data:ReturnType<typeof useData>;close:()=>void}){const [form,setForm]=useState<any>(kind==="trip"?{type:"business",from:"",to:"",km:0,minutes:0,vehicle:data.vehicles[0]?.id}:{category:"fuel",merchant:"",amount:0,date:new Date().toISOString().slice(0,10)});const update=(k:string,v:any)=>setForm((x:any)=>({...x,[k]:v}));const save=()=>{if(kind==="trip")data.setTrips(x=>[{...form,id:crypto.randomUUID(),km:Number(form.km),minutes:Number(form.minutes)},...x]);else data.setExpenses(x=>[{...form,id:crypto.randomUUID(),amount:Number(form.amount)},...x]);close()};return <div style={{position:"fixed",inset:0,zIndex:10,background:"#0009",display:"grid",placeItems:"center",padding:18}}><div className="glass card" style={{width:"min(520px,100%)"}}><div className="row"><h2>{kind==="trip"?"Add trip":"Add expense"}</h2><button className="btn" onClick={close}>×</button></div><div className="formgrid">{kind==="trip"?<><label>Type<select className="field" value={form.type} onChange={e=>update("type",e.target.value)}><option>business</option><option>personal</option></select></label><label>Distance km<input className="field" type="number" onChange={e=>update("km",e.target.value)}/></label><label>Origin<input className="field" onChange={e=>update("from",e.target.value)}/></label><label>Destination<input className="field" onChange={e=>update("to",e.target.value)}/></label><label>Duration minutes<input className="field" type="number" onChange={e=>update("minutes",e.target.value)}/></label></>:<><label>Category<select className="field" value={form.category} onChange={e=>update("category",e.target.value)}><option>fuel</option><option>maintenance</option><option>parking</option><option>insurance</option><option>other</option></select></label><label>Amount<input className="field" type="number" onChange={e=>update("amount",e.target.value)}/></label><label>Merchant<input className="field" onChange={e=>update("merchant",e.target.value)}/></label><label>Date<input className="field" type="date" value={form.date} onChange={e=>update("date",e.target.value)}/></label></>}</div><button className="btn primary" style={{width:"100%",marginTop:18}} onClick={save}>Save {kind}</button></div></div>}
+type View = "home" | "trips" | "expenses" | "vehicles" | "reports" | "maintenance" | "settings";
+type Trip = {
+  id: string;
+  type: "business" | "personal";
+  from: string;
+  to: string;
+  km: number;
+  minutes: number;
+  date: string;
+  vehicle: string;
+};
+
+type Expense = {
+  id: string;
+  category: string;
+  merchant: string;
+  amount: number;
+  date: string;
+};
+
+type Vehicle = {
+  id: string;
+  make: string;
+  model: string;
+  plate: string;
+  odometer: number;
+  fuel: string;
+  primary?: boolean;
+};
+
+const seedVehicles: Vehicle[] = [
+  { id: "v1", make: "Volkswagen", model: "Polo", plate: "DEM-001", odometer: 85240, fuel: "Petrol", primary: true },
+  { id: "v2", make: "Toyota", model: "Hilux", plate: "WRK-774", odometer: 142300, fuel: "Diesel" },
+];
+
+const seedTrips: Trip[] = [
+  { id: "t1", type: "business", from: "Sandton", to: "Midrand", km: 32.4, minutes: 48, date: "2026-09-15", vehicle: "v1" },
+  { id: "t2", type: "personal", from: "Home", to: "Rosebank Mall", km: 11.2, minutes: 25, date: "2026-09-14", vehicle: "v1" },
+  { id: "t3", type: "business", from: "Office", to: "Pretoria CBD", km: 54.1, minutes: 70, date: "2026-09-12", vehicle: "v1" },
+];
+
+const seedExpenses: Expense[] = [
+  { id: "e1", category: "fuel", merchant: "Engen 1Stop", amount: 920, date: "2026-09-15" },
+  { id: "e2", category: "parking", merchant: "Sandton City", amount: 45, date: "2026-09-14" },
+  { id: "e3", category: "maintenance", merchant: "Tiger Wheel & Tyre", amount: 310, date: "2026-09-12" },
+];
+
+const money = (value: number) => `R${value.toLocaleString("en-ZA", { minimumFractionDigits:0, maximumFractionDigits: 2 })}`;
+const formatDate = (value: string) => new Date(value).toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
+
+function App() {
+  const [view, setView] = useState<View>("home");
+  const [vehicles, setVehicles] = useState<Vehicle[]>(seedVehicles);
+  const [trips, setTrips] = useState<Trip[]>(seedTrips);
+  const [expenses, setExpenses] = useState<Expense[]>(seedExpenses);
+  const [showTripModal, setShowTripModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [driveOn, setDriveOn] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("driverlog-app");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { vehicles?: Vehicle[]; trips?: Trip[]; expenses?: Expense[] };
+      if (parsed.vehicles) setVehicles(parsed.vehicles);
+      if (parsed.trips) setTrips(parsed.trips);
+      if (parsed.expenses) setExpenses(parsed.expenses);
+    } catch {
+      // Ignore malformed local storage data.
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("driverlog-app", JSON.stringify({ vehicles, trips, expenses }));
+  }, [vehicles, trips, expenses]);
+
+  const primaryVehicle = useMemo(
+    () => vehicles.find((v) => v.primary) ?? vehicles[0],
+    [vehicles],
+  );
+
+  const distanceThisMonth = trips.reduce((total, trip) => total + trip.km, 0);
+  const totalSpend = expenses.reduce((total, expense) => total + expense.amount, 0);
+  const businessKm = trips.filter((trip) => trip.type === "business").reduce((total, trip) => total + trip.km, 0);
+
+  const renderContent = () => {
+    switch (view) {
+      case "home":
+        return (
+          <HomeView
+            primaryVehicle={primaryVehicle}
+            trips={trips}
+            expenses={expenses}
+            totalSpend={totalSpend}
+            distanceThisMonth={distanceThisMonth}
+            businessKm={businessKm}
+            setView={setView}
+            onAddTrip={() => setShowTripModal(true)}
+            onAddExpense={() => setShowExpenseModal(true)}
+            onStartDrive={() => setDriveOn(true)}
+          />
+        );
+      case "trips":
+        return <TripsView trips={trips} onAddTrip={() => setShowTripModal(true)} />;
+      case "expenses":
+        return <ExpensesView expenses={expenses} onAddExpense={() => setShowExpenseModal(true)} />;
+      case "vehicles":
+        return <VehiclesView vehicles={vehicles} />;
+      case "reports":
+        return <ReportsView trips={trips} expenses={expenses} />;
+      case "maintenance":
+        return <MaintenanceView primaryVehicle={primaryVehicle} />;
+      case "settings":
+        return <SettingsView />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      <div className="app-shell">
+        <aside className="sidebar glass-panel">
+          <div className="brand-block">
+            <div className="brand-mark">D</div>
+            <div>
+              <div className="brand-name">DriverLog</div>
+              <div className="brand-tag">Drive. Track. Know.</div>
+            </div>
+          </div>
+
+          <button className="primary-btn full-width" onClick={() => setDriveOn(true)}>
+            Start drive
+          </button>
+
+          <nav className="nav-list">
+            {[
+              ["home", "Home"],
+              ["trips", "Trips"],
+              ["expenses", "Expenses"],
+              ["vehicles", "Garage"],
+              ["reports", "Reports"],
+              ["maintenance", "Maintenance"],
+              ["settings", "Settings"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                className={view === key ? "nav-item active" : "nav-item"}
+                onClick={() => setView(key as View)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="main-panel">
+          {renderContent()}
+        </main>
+      </div>
+
+      <div className="mobile-bar">
+        {["home", "trips", "expenses", "vehicles"].map((key) => (
+          <button key={key} className={view === key ? "mobile-item active" : "mobile-item"} onClick={() => setView(key as View)}>
+            {key}
+          </button>
+        ))}
+        <button className="mobile-drive" onClick={() => setDriveOn(true)}>Drive</button>
+      </div>
+
+      {driveOn && (
+        <DriveModal
+          onClose={() => setDriveOn(false)}
+          onSave={(newTrip) => {
+            setTrips((previous) => [newTrip, ...previous]);
+            setDriveOn(false);
+            setView("trips");
+          }}
+          vehicle={primaryVehicle}
+        />
+      )}
+
+      {showTripModal && (
+        <AddTripModal
+          onClose={() => setShowTripModal(false)}
+          onSave={(newTrip) => {
+            setTrips((previous) => [newTrip, ...previous]);
+            setShowTripModal(false);
+          }}
+        />
+      )}
+
+      {showExpenseModal && (
+        <AddExpenseModal
+          onClose={() => setShowExpenseModal(false)}
+          onSave={(newExpense) => {
+            setExpenses((previous) => [newExpense, ...previous]);
+            setShowExpenseModal(false);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function HomeView({
+  primaryVehicle,
+  trips,
+  expenses,
+  totalSpend,
+  distanceThisMonth,
+  businessKm,
+  setView,
+  onAddTrip,
+  onAddExpense,
+  onStartDrive,
+}: {
+  primaryVehicle?: Vehicle;
+  trips: Trip[];
+  expenses: Expense[];
+  totalSpend: number;
+  distanceThisMonth: number;
+  businessKm: number;
+  setView: (view: View) => void;
+  onAddTrip: () => void;
+  onAddExpense: () => void;
+  onStartDrive: () => void;
+}) {
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Good day</div>
+          <h1>Keep moving.</h1>
+        </div>
+        <div className="header-actions">
+          <button className="secondary-btn" onClick={onStartDrive}>Start drive</button>
+          <button className="secondary-btn" onClick={onAddTrip}>Add trip</button>
+          <button className="primary-btn" onClick={onAddExpense}>Add expense</button>
+        </div>
+      </div>
+
+      <section className="stats-grid">
+        <StatCard title="Distance this month" value={`${distanceThisMonth.toFixed(1)} km`} accent />
+        <StatCard title="Total spend" value={money(totalSpend)} />
+        <StatCard title="Business km" value={`${businessKm.toFixed(1)} km`} />
+        <StatCard title="Trips logged" value={String(trips.length)} />
+      </section>
+
+      <div className="content-grid two-col">
+        <div className="panel glass-panel">
+          <div className="panel-header">
+            <h2>Primary vehicle</h2>
+            <button className="text-btn" onClick={() => setView("vehicles")}>View all</button>
+          </div>
+          {primaryVehicle ? (
+            <div className="vehicle-highlight">
+              <div>
+                <strong>{primaryVehicle.make} {primaryVehicle.model}</strong>
+                <div className="subtle">{primaryVehicle.plate} · {primaryVehicle.fuel}</div>
+              </div>
+              <span className="pill">{primaryVehicle.odometer.toLocaleString()} km</span>
+            </div>
+          ) : (
+            <div className="empty-state">No vehicle set yet.</div>
+          )}
+        </div>
+
+        <div className="panel glass-panel">
+          <div className="panel-header">
+            <h2>Expense snapshot</h2>
+            <button className="text-btn" onClick={() => setView("expenses")}>Details</button>
+          </div>
+          <div className="stack-list">
+            {expenses.slice(0, 3).map((expense) => (
+              <div key={expense.id} className="list-row">
+                <div>
+                  <strong>{expense.merchant}</strong>
+                  <div className="subtle">{expense.category}</div>
+                </div>
+                <span>{money(expense.amount)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="panel glass-panel">
+        <div className="panel-header">
+          <h2>Recent trips</h2>
+          <button className="text-btn" onClick={() => setView("trips")}>View all</button>
+        </div>
+        <div className="stack-list">
+          {trips.slice(0, 4).map((trip) => (
+            <div key={trip.id} className="list-row">
+              <div>
+                <strong>{trip.from} → {trip.to}</strong>
+                <div className="subtle">{trip.type} · {formatDate(trip.date)} · {trip.minutes} min</div>
+              </div>
+              <span>{trip.km.toFixed(1)} km</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TripsView({ trips, onAddTrip }: { trips: Trip[]; onAddTrip: () => void }) {
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Trips</div>
+          <h1>Journeys</h1>
+        </div>
+        <button className="primary-btn" onClick={onAddTrip}>Add trip</button>
+      </div>
+      <div className="stack-list">
+        {trips.length === 0 ? (
+          <div className="empty-state">No trips added yet.</div>
+        ) : (
+          trips.map((trip) => (
+            <div key={trip.id} className="list-row large panel-card">
+              <div>
+                <strong>{trip.from} → {trip.to}</strong>
+                <div className="subtle">{trip.type} · {formatDate(trip.date)} · {trip.minutes} min</div>
+              </div>
+              <span>{trip.km.toFixed(1)} km</span>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+function ExpensesView({ expenses, onAddExpense }: { expenses: Expense[]; onAddExpense: () => void }) {
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Costs</div>
+          <h1>Expenses</h1>
+        </div>
+        <button className="primary-btn" onClick={onAddExpense}>Add expense</button>
+      </div>
+      <div className="stack-list">
+        {expenses.length === 0 ? (
+          <div className="empty-state">No costs recorded.</div>
+        ) : (
+          expenses.map((expense) => (
+            <div key={expense.id} className="list-row large panel-card">
+              <div>
+                <strong>{expense.merchant}</strong>
+                <div className="subtle">{expense.category} · {formatDate(expense.date)}</div>
+              </div>
+              <span>{money(expense.amount)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+function VehiclesView({ vehicles }: { vehicles: Vehicle[] }) {
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Garage</div>
+          <h1>Vehicles</h1>
+        </div>
+      </div>
+      <div className="stack-list">
+        {vehicles.map((vehicle) => (
+          <div key={vehicle.id} className="panel-card panel">
+            <div className="list-row">
+              <div>
+                <strong>{vehicle.make} {vehicle.model}</strong>
+                <div className="subtle">{vehicle.plate} · {vehicle.fuel}</div>
+              </div>
+              {vehicle.primary ? <span className="pill">Primary</span> : null}
+            </div>
+            <div className="vehicle-stats">
+              <span>{vehicle.odometer.toLocaleString()} km</span>
+              <span>{vehicle.primary ? "Active" : "Backup"}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ReportsView({ trips, expenses }: { trips: Trip[]; expenses: Expense[] }) {
+  const totalDistance = trips.reduce((total, trip) => total + trip.km, 0);
+  const spend = expenses.reduce((total, expense) => total + expense.amount, 0);
+
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Insights</div>
+          <h1>Reports</h1>
+        </div>
+      </div>
+
+      <section className="stats-grid">
+        <StatCard title="Total distance" value={`${totalDistance.toFixed(1)} km`} accent />
+        <StatCard title="Total spend" value={money(spend)} />
+        <StatCard title="Trips" value={String(trips.length)} />
+        <StatCard title="Avg. trip" value={`${(totalDistance / Math.max(trips.length, 1)).toFixed(1)} km`} />
+      </section>
+
+      <div className="panel glass-panel">
+        <div className="panel-header">
+          <h2>Distance trend</h2>
+        </div>
+        <div className="bar-chart">
+          {trips.slice(0, 6).map((trip) => (
+            <div key={trip.id} className="bar-wrap">
+              <div className="bar" style={{ height: `${Math.max(24, (trip.km / Math.max(60, totalDistance || 1)) * 100)}%` }} />
+              <small>{trip.km.toFixed(0)}</small>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function MaintenanceView({ primaryVehicle }: { primaryVehicle?: Vehicle }) {
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Maintenance</div>
+          <h1>Service schedule</h1>
+        </div>
+      </div>
+
+      <section className="stats-grid">
+        <StatCard title="Primary vehicle" value={primaryVehicle ? `${primaryVehicle.make} ${primaryVehicle.model}` : "—"} />
+        <StatCard title="Next service" value={primaryVehicle ? `${(primaryVehicle.odometer + 15000).toLocaleString()} km` : "—"} accent />
+        <StatCard title="Insurance" value="42 days" />
+        <StatCard title="License" value="87 days" />
+      </section>
+    </>
+  );
+}
+
+function SettingsView() {
+  return (
+    <>
+      <div className="header-row">
+        <div>
+          <div className="eyebrow">Preferences</div>
+          <h1>Settings</h1>
+        </div>
+      </div>
+
+      <div className="panel glass-panel form-stack">
+        <label>
+          <span>Display name</span>
+          <input defaultValue="Driver" />
+        </label>
+        <label>
+          <span>Distance unit</span>
+          <select defaultValue="kilometres">
+            <option value="kilometres">Kilometres</option>
+            <option value="miles">Miles</option>
+          </select>
+        </label>
+        <label>
+          <span>Currency</span>
+          <select defaultValue="zar">
+            <option value="zar">ZAR</option>
+            <option value="usd">USD</option>
+          </select>
+        </label>
+      </div>
+    </>
+  );
+}
+
+function DriveModal({
+  vehicle,
+  onClose,
+  onSave,
+}: {
+  vehicle?: Vehicle;
+  onClose: () => void;
+  onSave: (trip: Trip) => void;
+}) {
+  const [destination, setDestination] = useState("Pretoria CBD");
+  const [minutes, setMinutes] = useState(40);
+  const [km, setKm] = useState(28.4);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
+        <div className="panel-header">
+          <h2>Start drive</h2>
+          <button className="text-btn" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="form-stack">
+          <label>
+            <span>Vehicle</span>
+            <input value={vehicle ? `${vehicle.make} ${vehicle.model}` : "No vehicle selected"} readOnly />
+          </label>
+          <label>
+            <span>Destination</span>
+            <input value={destination} onChange={(event) => setDestination(event.target.value)} />
+          </label>
+          <div className="split-form">
+            <label>
+              <span>Distance (km)</span>
+              <input type="number" value={km} onChange={(event) => setKm(Number(event.target.value))} />
+            </label>
+            <label>
+              <span>Duration (min)</span>
+              <input type="number" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} />
+            </label>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button className="secondary-btn" onClick={onClose}>Cancel</button>
+          <button
+            className="primary-btn"
+            onClick={() =>
+              onSave({
+                id: crypto.randomUUID(),
+                type: "business",
+                from: "Current location",
+                to: destination,
+                km,
+                minutes,
+                date: new Date().toISOString().slice(0, 10),
+                vehicle: vehicle?.id ?? "v1",
+              })
+            }
+          >
+            Save trip
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddTripModal({ onClose, onSave }: { onClose: () => void; onSave: (trip: Trip) => void }) {
+  const [from, setFrom] = useState("Sandton");
+  const [to, setTo] = useState("Midrand");
+  const [km, setKm] = useState(32.4);
+  const [minutes, setMinutes] = useState(48);
+  const [type, setType] = useState<"business" | "personal">("business");
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
+        <div className="panel-header">
+          <h2>Add trip</h2>
+          <button className="text-btn" onClick={onClose}>Close</button>
+        </div>
+        <div className="form-stack">
+          <label>
+            <span>Type</span>
+            <select value={type} onChange={(event) => setType(event.target.value as "business" | "personal")}>
+              <option value="business">Business</option>
+              <option value="personal">Personal</option>
+            </select>
+          </label>
+          <div className="split-form">
+            <label>
+              <span>From</span>
+              <input value={from} onChange={(event) => setFrom(event.target.value)} />
+            </label>
+            <label>
+              <span>To</span>
+              <input value={to} onChange={(event) => setTo(event.target.value)} />
+            </label>
+          </div>
+          <div className="split-form">
+            <label>
+              <span>Distance (km)</span>
+              <input type="number" value={km} onChange={(event) => setKm(Number(event.target.value))} />
+            </label>
+            <label>
+              <span>Minutes</span>
+              <input type="number" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} />
+            </label>
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="secondary-btn" onClick={onClose}>Cancel</button>
+          <button
+            className="primary-btn"
+            onClick={() =>
+              onSave({
+                id: crypto.randomUUID(),
+                type,
+                from,
+                to,
+                km,
+                minutes,
+                date: new Date().toISOString().slice(0, 10),
+                vehicle: "v1",
+              })
+            }
+          >
+            Save trip
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddExpenseModal({ onClose, onSave }: { onClose: () => void; onSave: (expense: Expense) => void }) {
+  const [category, setCategory] = useState("fuel");
+  const [merchant, setMerchant] = useState("Engen 1Stop");
+  const [amount, setAmount] = useState(920);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
+        <div className="panel-header">
+          <h2>Add expense</h2>
+          <button className="text-btn" onClick={onClose}>Close</button>
+        </div>
+        <div className="form-stack">
+          <label>
+            <span>Category</span>
+            <select value={category} onChange={(event) => setCategory(event.target.value)}>
+              <option value="fuel">Fuel</option>
+              <option value="parking">Parking</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="insurance">Insurance</option>
+            </select>
+          </label>
+          <label>
+            <span>Merchant</span>
+            <input value={merchant} onChange={(event) => setMerchant(event.target.value)} />
+          </label>
+          <label>
+            <span>Amount</span>
+            <input type="number" value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
+          </label>
+        </div>
+        <div className="modal-actions">
+          <button className="secondary-btn" onClick={onClose}>Cancel</button>
+          <button
+            className="primary-btn"
+            onClick={() =>
+              onSave({
+                id: crypto.randomUUID(),
+                category,
+                merchant,
+                amount,
+                date: new Date().toISOString().slice(0, 10),
+              })
+            }
+          >
+            Save expense
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ title, value, accent = false }: { title: string; value: string; accent?: boolean }) {
+  return (
+    <div className={accent ? "metric-card accent" : "metric-card"}>
+      <div className="metric-title">{title}</div>
+      <div className="metric-value">{value}</div>
+    </div>
+  );
+}
+
+export { App };
